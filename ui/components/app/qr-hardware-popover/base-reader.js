@@ -2,19 +2,28 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import log from 'loglevel';
 import { URDecoder } from '@ngraveio/bc-ur';
 import PropTypes from 'prop-types';
-// TODO: Remove restricted import
-// eslint-disable-next-line import-x/no-restricted-paths
-import { getEnvironmentType } from '../../../../app/scripts/lib/util';
 import { ENVIRONMENT_TYPE_FULLSCREEN } from '../../../../shared/constants/app';
+import { getEnvironmentType } from '../../../../shared/lib/environment-type';
+import {
+  getChromiumExtensionCameraSiteSettingsUrl,
+  getMozExtensionOriginForDisplay,
+  isFirefoxBrowser,
+} from '../../../../shared/lib/browser-runtime.utils';
 import WebcamUtils from '../../../helpers/utils/webcam-utils';
 import PageContainerFooter from '../../ui/page-container/page-container-footer/page-container-footer.component';
 import { useI18nContext } from '../../../hooks/useI18nContext';
-import { SECOND } from '../../../../shared/constants/time';
+import {
+  CameraAccessErrorContent,
+  CameraAccessErrorContentVariant,
+} from '../camera-access-error-content';
 import EnhancedReader from './enhanced-reader';
 
 const READY_STATE = {
   ACCESSING_CAMERA: 'ACCESSING_CAMERA',
-  NEED_TO_ALLOW_ACCESS: 'NEED_TO_ALLOW_ACCESS',
+  /** User dismissed the permission prompt; permission can be requested again */
+  CAMERA_ACCESS_NEEDED: 'CAMERA_ACCESS_NEEDED',
+  /** Persistent block — user must change browser settings */
+  CAMERA_ACCESS_BLOCKED: 'CAMERA_ACCESS_BLOCKED',
   READY: 'READY',
 };
 
@@ -29,54 +38,117 @@ const BaseReader = ({
   const [error, setError] = useState(null);
   const [urDecoder, setURDecoder] = useState(new URDecoder());
   const [progress, setProgress] = useState(0);
+  const [permissionActionLoading, setPermissionActionLoading] = useState(false);
 
-  const permissionCheckerRef = useRef(null);
   const mounted = useRef(false);
+  const permissionStatusRef = useRef(null);
+  const permissionChangeHandlerRef = useRef(null);
+
+  const cleanupPermissionListener = useCallback(() => {
+    const status = permissionStatusRef.current;
+    const handler = permissionChangeHandlerRef.current;
+    if (status && handler) {
+      if (typeof status.removeEventListener === 'function') {
+        status.removeEventListener('change', handler);
+      } else {
+        status.onchange = null;
+      }
+    }
+    permissionStatusRef.current = null;
+    permissionChangeHandlerRef.current = null;
+  }, []);
+
+  const tryAcquireCameraAndEnterReady = useCallback(async () => {
+    try {
+      const stream = await WebcamUtils.requestVideoStream();
+      WebcamUtils.stopVideoStream(stream);
+      if (mounted.current) {
+        cleanupPermissionListener();
+        setReady(READY_STATE.READY);
+      }
+    } catch (e) {
+      log.info('QR camera: could not acquire stream after permission grant', e);
+    }
+  }, [cleanupPermissionListener]);
+
+  const attachPermissionGrantedListener = useCallback(
+    (permissionStatus) => {
+      cleanupPermissionListener();
+      if (!permissionStatus) {
+        return;
+      }
+      permissionStatusRef.current = permissionStatus;
+      const handler = () => {
+        if (permissionStatus.state === 'granted') {
+          tryAcquireCameraAndEnterReady();
+        }
+      };
+      permissionChangeHandlerRef.current = handler;
+      if (typeof permissionStatus.addEventListener === 'function') {
+        permissionStatus.addEventListener('change', handler);
+      } else {
+        permissionStatus.onchange = handler;
+      }
+    },
+    [cleanupPermissionListener, tryAcquireCameraAndEnterReady],
+  );
+
+  /**
+   * After getUserMedia throws NotAllowedError, re-query permission and subscribe for grant.
+   *
+   * @returns {Promise<'denied' | 'prompt' | 'granted'>}
+   */
+  const reconcileNotAllowedPermission = useCallback(async () => {
+    const { state, permissionStatus } =
+      await WebcamUtils.queryCameraPermission();
+    attachPermissionGrantedListener(permissionStatus);
+    return state;
+  }, [attachPermissionGrantedListener]);
 
   const reset = () => {
+    cleanupPermissionListener();
     setReady(READY_STATE.ACCESSING_CAMERA);
     setError(null);
     setURDecoder(new URDecoder());
     setProgress(0);
+    setPermissionActionLoading(false);
   };
 
-  const checkPermissions = useCallback(async () => {
-    try {
-      const { permissions } = await WebcamUtils.checkStatus();
-      if (permissions) {
-        // Let the video stream load first...
-        await new Promise((resolve) => setTimeout(resolve, SECOND * 2));
-        if (!mounted.current) {
-          return;
-        }
-        setReady(READY_STATE.READY);
-      } else if (mounted.current) {
-        // Keep checking for permissions
-        permissionCheckerRef.current = setTimeout(checkPermissions, SECOND);
-        setReady(READY_STATE.NEED_TO_ALLOW_ACCESS);
-      }
-    } catch (e) {
-      if (mounted.current) {
-        setError(e);
-      }
-    }
-  }, []);
+  const startCameraPermissionFlow = useCallback(async () => {
+    const { state, permissionStatus } =
+      await WebcamUtils.queryCameraPermission();
 
-  const initCamera = useCallback(() => {
-    try {
-      checkPermissions();
-    } catch (e) {
-      if (!mounted.current) {
-        return;
+    if (state === 'denied') {
+      attachPermissionGrantedListener(permissionStatus);
+      if (mounted.current) {
+        setReady(READY_STATE.CAMERA_ACCESS_BLOCKED);
       }
+      return;
+    }
+
+    try {
+      const stream = await WebcamUtils.requestVideoStream();
+      WebcamUtils.stopVideoStream(stream);
+      if (mounted.current) {
+        cleanupPermissionListener();
+        setReady(READY_STATE.READY);
+      }
+    } catch (e) {
       if (e.name === 'NotAllowedError') {
-        log.info(`Permission denied: '${e}'`);
-        setReady(READY_STATE.NEED_TO_ALLOW_ACCESS);
-      } else {
+        const nextState = await reconcileNotAllowedPermission();
+        if (mounted.current) {
+          const useBlockedUi = nextState === 'denied' || isFirefoxBrowser();
+          setReady(
+            useBlockedUi
+              ? READY_STATE.CAMERA_ACCESS_BLOCKED
+              : READY_STATE.CAMERA_ACCESS_NEEDED,
+          );
+        }
+      } else if (mounted.current) {
         setError(e);
       }
     }
-  }, [checkPermissions]);
+  }, [cleanupPermissionListener, reconcileNotAllowedPermission]);
 
   const checkEnvironment = useCallback(async () => {
     try {
@@ -89,15 +161,73 @@ const BaseReader = ({
         const currentHash = currentUrl.hash;
         const currentRoute = currentHash ? currentHash.substring(1) : null;
         global.platform.openExtensionInBrowser(currentRoute);
+        return;
       }
     } catch (e) {
       if (mounted.current) {
         setError(e);
       }
+      return;
     }
-    // initial attempt is required to trigger permission prompt
-    return initCamera();
-  }, [initCamera]);
+    await startCameraPermissionFlow();
+  }, [startCameraPermissionFlow]);
+
+  const handleCameraAccessNeededContinue = useCallback(async () => {
+    setPermissionActionLoading(true);
+    try {
+      const stream = await WebcamUtils.requestVideoStream();
+      WebcamUtils.stopVideoStream(stream);
+      if (mounted.current) {
+        cleanupPermissionListener();
+        setReady(READY_STATE.READY);
+      }
+    } catch (e) {
+      if (e.name === 'NotAllowedError') {
+        const nextState = await reconcileNotAllowedPermission();
+        if (mounted.current && (nextState === 'denied' || isFirefoxBrowser())) {
+          setReady(READY_STATE.CAMERA_ACCESS_BLOCKED);
+        }
+      } else if (mounted.current) {
+        setError(e);
+      }
+    } finally {
+      if (mounted.current) {
+        setPermissionActionLoading(false);
+      }
+    }
+  }, [cleanupPermissionListener, reconcileNotAllowedPermission]);
+
+  const handleCameraAccessBlockedContinue = useCallback(async () => {
+    setPermissionActionLoading(true);
+    try {
+      const { state } = await WebcamUtils.queryCameraPermission();
+      if (state === 'denied') {
+        return;
+      }
+      const stream = await WebcamUtils.requestVideoStream();
+      WebcamUtils.stopVideoStream(stream);
+      if (mounted.current) {
+        cleanupPermissionListener();
+        setReady(READY_STATE.READY);
+      }
+    } catch (e) {
+      if (e.name === 'NotAllowedError') {
+        await reconcileNotAllowedPermission();
+      } else if (mounted.current) {
+        setError(e);
+      }
+    } finally {
+      if (mounted.current) {
+        setPermissionActionLoading(false);
+      }
+    }
+  }, [cleanupPermissionListener, reconcileNotAllowedPermission]);
+
+  const handleOpenChromiumCameraSettings = useCallback(() => {
+    global.platform.openTab({
+      url: getChromiumExtensionCameraSiteSettingsUrl(),
+    });
+  }, []);
 
   const handleScan = useCallback(
     (data) => {
@@ -128,21 +258,11 @@ const BaseReader = ({
     checkEnvironment();
     return () => {
       mounted.current = false;
-      clearTimeout(permissionCheckerRef.current);
-      permissionCheckerRef.current = null;
+      cleanupPermissionListener();
     };
-  }, [checkEnvironment]);
-
-  useEffect(() => {
-    if (ready === READY_STATE.READY) {
-      initCamera();
-    } else if (ready === READY_STATE.NEED_TO_ALLOW_ACCESS) {
-      checkPermissions();
-    }
-  }, [ready, checkPermissions, initCamera]);
+  }, [checkEnvironment, cleanupPermissionListener]);
 
   const tryAgain = () => {
-    clearTimeout(permissionCheckerRef.current);
     reset();
     checkEnvironment();
   };
@@ -192,18 +312,40 @@ const BaseReader = ({
   };
 
   const renderVideo = () => {
+    if (ready === READY_STATE.CAMERA_ACCESS_NEEDED) {
+      return (
+        <CameraAccessErrorContent
+          variant={CameraAccessErrorContentVariant.Needed}
+          onContinue={handleCameraAccessNeededContinue}
+          continueLoading={permissionActionLoading}
+        />
+      );
+    }
+    if (ready === READY_STATE.CAMERA_ACCESS_BLOCKED) {
+      return (
+        <CameraAccessErrorContent
+          variant={CameraAccessErrorContentVariant.Blocked}
+          isFirefox={isFirefoxBrowser()}
+          mozExtensionDisplay={getMozExtensionOriginForDisplay()}
+          onOpenSettings={handleOpenChromiumCameraSettings}
+          onContinue={handleCameraAccessBlockedContinue}
+          continueLoading={permissionActionLoading}
+        />
+      );
+    }
+
     let message;
     if (ready === READY_STATE.ACCESSING_CAMERA) {
       message = t('accessingYourCamera');
     } else if (ready === READY_STATE.READY) {
       message = t('QRHardwareScanInstructions');
-    } else if (ready === READY_STATE.NEED_TO_ALLOW_ACCESS) {
-      message = t('youNeedToAllowCameraAccess');
     }
     return (
       <>
         <div className="qr-scanner__content">
-          <EnhancedReader handleScan={handleScan} />
+          {ready === READY_STATE.READY ? (
+            <EnhancedReader handleScan={handleScan} />
+          ) : null}
         </div>
         {progress > 0 && (
           <div
