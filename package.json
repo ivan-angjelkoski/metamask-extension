@@ -709,6 +709,7 @@
     "lockfile-lint": "^4.10.6",
     "loose-envify": "^1.4.0",
     "madge": "^8.0.0",
+    "mathjs": "^11.8.0",
     "micromatch": "^4.0.8",
     "mini-css-extract-plugin": "^2.9.1",
     "mocha": "^10.2.0",
