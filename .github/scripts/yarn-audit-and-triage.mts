@@ -756,7 +756,8 @@ function main() {
     );
   }
 
-  maybeCreateTrackingIssue(trackOnlyDev, deprecations);
+  // Issue creation for new advisories is handled by yarn-audit-diff.mts.
+  // maybeCreateTrackingIssue(trackOnlyDev, deprecations);
 
   buildSummaryAndVerdict({
     advisories,

@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { IncomingWebhook } from '@slack/webhook';
 import {
@@ -9,9 +10,12 @@ import {
   type ParsedAdvisory,
   extractNativeBlocks,
   formatAdvisoryTree,
+  githubAnnotate,
   stripAnsi,
   writeStepSummary,
 } from './shared/audit-utils.mts';
+import { ghApi } from './shared/gh-api.mts';
+import { getGitHubToken } from './shared/github-token.mts';
 
 // ---------------------------------------------------------------------------
 // Pipeline contract
@@ -44,6 +48,143 @@ function readAdvisories(filePath: string): ParsedAdvisory[] | null {
 
 function sevLabel(a: ParsedAdvisory): string {
   return (a.effectiveSeverity ?? 'unknown').toUpperCase();
+}
+
+// ---------------------------------------------------------------------------
+// GitHub issue creation (push-to-main only)
+// ---------------------------------------------------------------------------
+
+/**
+ * Create (or find existing) tracking issue for new advisories detected on
+ * push-to-main.  Uses a content-hash in the title so the same set of
+ * advisories never opens a duplicate issue.
+ */
+function maybeCreateIssue(
+  advisories: ParsedAdvisory[],
+  blockingAdvisories: ParsedAdvisory[],
+  treeText: string,
+): void {
+  if (
+    process.env.GITHUB_EVENT_NAME !== 'push' ||
+    advisories.length === 0
+  ) {
+    return;
+  }
+
+  const full = process.env.GITHUB_REPOSITORY;
+  if (!full) {
+    githubAnnotate('warning', 'GITHUB_REPOSITORY not set — skipping issue creation.');
+    return;
+  }
+  const [owner, repo] = full.split('/');
+  if (!owner || !repo) return;
+
+  let token: string;
+  try {
+    token = getGitHubToken();
+  } catch {
+    githubAnnotate('warning', 'No GitHub token available — skipping issue creation.');
+    return;
+  }
+
+  // Deterministic hash so we don't open duplicates for the same advisory set.
+  const contentKey = createHash('sha256')
+    .update(
+      JSON.stringify(
+        advisories
+          .map((a) => a.id)
+          .filter((id): id is number => id !== null)
+          .sort((a, b) => a - b),
+      ),
+    )
+    .digest('hex')
+    .slice(0, 10);
+
+  const title = `Yarn Audit: new advisories on main (${contentKey})`;
+
+  // Search for existing issue with same title.
+  try {
+    const q = `repo:${owner}/${repo} type:issue in:title "${title}"`;
+    const raw = ghApi(
+      `/search/issues?q=${encodeURIComponent(q)}`,
+      undefined,
+      token,
+    );
+    const json = JSON.parse(raw) as {
+      items?: Array<{ number?: number; title?: string }>;
+    };
+    const match = json.items?.find((item) => item.title === title);
+    if (typeof match?.number === 'number') {
+      githubAnnotate(
+        'notice',
+        `Tracking issue already exists: https://github.com/${owner}/${repo}/issues/${match.number}`,
+      );
+      return;
+    }
+  } catch {
+    // Search failed — proceed to create (worst case: a duplicate).
+  }
+
+  const runId = process.env.GITHUB_RUN_ID ?? '';
+  const runUrl = `https://github.com/${owner}/${repo}/actions/runs/${runId}`;
+  const branch = process.env.BRANCH ?? 'main';
+  const blockingCount = blockingAdvisories.length;
+
+  const bodyLines: string[] = [
+    `**${advisories.length}** new advisor${advisories.length === 1 ? 'y' : 'ies'} detected on push to \`${branch}\` (${blockingCount} release-blocking).`,
+    '',
+    `CI run: ${runUrl}`,
+    '',
+  ];
+
+  if (blockingAdvisories.length > 0) {
+    bodyLines.push('## Release-blocking (production, moderate+)');
+    bodyLines.push('');
+    for (const a of blockingAdvisories) {
+      bodyLines.push(`- **${a.moduleName}** (${a.effectiveSeverity}) — ${a.title}`);
+      bodyLines.push(`  ${a.url}`);
+    }
+    bodyLines.push('');
+  }
+
+  const informational = advisories.filter((a) => !blockingAdvisories.includes(a));
+  if (informational.length > 0) {
+    bodyLines.push('## Informational (dev-only or low severity)');
+    bodyLines.push('');
+    for (const a of informational) {
+      const scope = a.affectsProduction ? 'production' : 'dev-only';
+      bodyLines.push(`- **${a.moduleName}** (${a.effectiveSeverity}, ${scope}) — ${a.title}`);
+      bodyLines.push(`  ${a.url}`);
+    }
+    bodyLines.push('');
+  }
+
+  bodyLines.push('<details><summary>Native audit tree</summary>');
+  bodyLines.push('');
+  bodyLines.push('```');
+  bodyLines.push(treeText);
+  bodyLines.push('```');
+  bodyLines.push('</details>');
+
+  try {
+    const raw = ghApi(
+      `/repos/${owner}/${repo}/issues`,
+      { method: 'POST', body: { title, body: bodyLines.join('\n') } },
+      token,
+    );
+    const json = JSON.parse(raw) as { number?: number };
+    if (typeof json.number === 'number') {
+      githubAnnotate(
+        'notice',
+        `Created tracking issue: https://github.com/${owner}/${repo}/issues/${json.number}`,
+      );
+    }
+  } catch (error) {
+    githubAnnotate(
+      'warning',
+      `Failed to create tracking issue: ${String(error)}`,
+    );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -241,6 +382,9 @@ async function main() {
 
   // On push-to-main, send a Slack notification so the team knows immediately.
   await postSlackNotification(newAdvisories, blockingAdvisories, treeText);
+
+  // On push-to-main, create a GitHub tracking issue.
+  maybeCreateIssue(newAdvisories, blockingAdvisories, treeText);
 
   // On PRs, fail the step only when there are release-blocking advisories.
   // On push-to-main, the step always succeeds (baseline must be uploaded).
