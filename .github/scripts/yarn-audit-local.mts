@@ -126,6 +126,7 @@ async function main() {
     (a) =>
       a.id !== null &&
       !baselineIds.has(a.id as number) &&
+      a.affectsProduction &&
       BLOCKING_SEVERITIES.has(a.effectiveSeverity),
   );
 

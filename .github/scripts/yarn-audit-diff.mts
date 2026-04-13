@@ -5,6 +5,7 @@ import {
   AUDIT_CURRENT_FILE,
   AUDIT_DETAILS_FILE,
   AUDIT_NATIVE_FILE,
+  BLOCKING_SEVERITIES,
   type ParsedAdvisory,
   extractNativeBlocks,
   formatAdvisoryTree,
@@ -146,7 +147,11 @@ async function main() {
   );
 
   const newAdvisories = current.filter(
-    (a) => a.id !== null && !baselineIds.has(a.id as number),
+    (a) =>
+      a.id !== null &&
+      !baselineIds.has(a.id as number) &&
+      a.affectsProduction &&
+      BLOCKING_SEVERITIES.has(a.effectiveSeverity),
   );
 
   if (newAdvisories.length === 0) {

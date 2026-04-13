@@ -122,18 +122,18 @@ jobs:
       # On push-to-main, rename the audit output to audit-baseline.json so the
       # uploaded artifact name matches what PR runs download to .tmp.
       - name: Rename audit baseline
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: mv .tmp/audit-current.json .tmp/audit-baseline.json
 
       - name: Upload audit baseline artifact
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         uses: actions/upload-artifact@v7
         with:
           name: audit-baseline
           path: .tmp/audit-baseline.json
 
       - name: Upload audit baseline to S3
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'MetaMask/metamask-extension' && vars.AWS_REGION && vars.AWS_IAM_ROLE && vars.AWS_S3_BUCKET }}
+        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'MetaMask/metamask-extension' && vars.AWS_REGION && vars.AWS_IAM_ROLE && vars.AWS_S3_BUCKET }}
         uses: MetaMask/github-tools/.github/actions/upload-s3@v1
         with:
           aws-region: ${{ vars.AWS_REGION }}
