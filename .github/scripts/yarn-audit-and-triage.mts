@@ -1,8 +1,5 @@
 import { spawnSync } from 'child_process';
-import { createHash } from 'crypto';
 import { existsSync, writeFileSync } from 'fs';
-import { getGitHubToken } from './shared/github-token.mts';
-import { ghApi } from './shared/gh-api.mts';
 import {
   AUDIT_CURRENT_FILE,
   AUDIT_DETAILS_FILE,
@@ -54,10 +51,6 @@ const IS_RELEASE_BRANCH = BRANCH.startsWith('release/');
 
 const CHECK_DEPRECATIONS = process.env.CHECK_DEPRECATIONS !== 'false';
 
-const CREATE_TRACKING_ISSUE =
-  process.env.CREATE_TRACKING_ISSUE === undefined
-    ? process.env.GITHUB_ACTIONS === 'true'
-    : process.env.CREATE_TRACKING_ISSUE === 'true';
 const SLACK_HIGHLIGHT = process.env.SLACK_HIGHLIGHT !== 'false';
 
 const YARN_BIN = 'yarn';
@@ -258,80 +251,6 @@ function runYarnInstallForDeprecations(): DeprecationFinding[] {
   return deprecations;
 }
 
-function getRepoFromEnv(): { owner: string; repo: string } | null {
-  const full = process.env.GITHUB_REPOSITORY;
-  if (!full) {
-    return null;
-  }
-
-  const [owner, repo] = full.split('/');
-  if (!owner || !repo) {
-    return null;
-  }
-
-  return { owner, repo };
-}
-
-function sha256Short(text: string): string {
-  return createHash('sha256').update(text).digest('hex').slice(0, 10);
-}
-
-function searchIssueByTitle({
-  owner,
-  repo,
-  title,
-  token,
-}: {
-  owner: string;
-  repo: string;
-  title: string;
-  token: string;
-}): number | null {
-  const q = `repo:${owner}/${repo} type:issue in:title "${title}"`;
-  try {
-    const raw = ghApi(
-      `/search/issues?q=${encodeURIComponent(q)}`,
-      undefined,
-      token,
-    );
-    const json = JSON.parse(raw) as {
-      items?: Array<{ number?: number; title?: string }>;
-    };
-    const match = json.items?.find((item) => item.title === title);
-    return typeof match?.number === 'number' ? match.number : null;
-  } catch {
-    return null;
-  }
-}
-
-function createIssueViaRest({
-  owner,
-  repo,
-  title,
-  body,
-  token,
-}: {
-  owner: string;
-  repo: string;
-  title: string;
-  body: string;
-  token: string;
-}): number {
-  const raw = ghApi(
-    `/repos/${owner}/${repo}/issues`,
-    {
-      method: 'POST',
-      body: { title, body },
-    },
-    token,
-  );
-  const json = JSON.parse(raw) as { number?: number };
-  if (typeof json.number !== 'number') {
-    throw new Error('Created issue response missing issue number.');
-  }
-  return json.number;
-}
-
 function extractAdvisories(records: unknown[]): ParsedAdvisory[] {
   const advisories: ParsedAdvisory[] = [];
 
@@ -375,114 +294,6 @@ function formatAdvisoryLine(advisory: ParsedAdvisory): string {
   const url = advisory.url ? ` ${advisory.url}` : '';
 
   return `[${scope}] ${sev}${downgraded} ${advisory.moduleName} ${id} — ${advisory.title}${url}`;
-}
-
-// ---------------------------------------------------------------------------
-// Tracking issue creation (push-to-main only)
-// ---------------------------------------------------------------------------
-
-function maybeCreateTrackingIssue(
-  trackOnlyDev: ParsedAdvisory[],
-  deprecations: DeprecationFinding[],
-): void {
-  if (
-    !CREATE_TRACKING_ISSUE ||
-    (trackOnlyDev.length === 0 && deprecations.length === 0) ||
-    process.env.GITHUB_EVENT_NAME !== 'push' ||
-    BRANCH !== 'main'
-  ) {
-    return;
-  }
-
-  const repo = getRepoFromEnv();
-  if (!repo) {
-    githubAnnotate(
-      'warning',
-      'CREATE_TRACKING_ISSUE=true but missing GITHUB_REPOSITORY; skipping issue creation.',
-    );
-    return;
-  }
-
-  const token = getGitHubToken();
-  const trackingKey = sha256Short(
-    JSON.stringify({
-      advisories: trackOnlyDev
-        .map((a) => ({
-          id: a.id,
-          moduleName: a.moduleName,
-          severity: a.effectiveSeverity,
-          url: a.url,
-          rule: a.matchedIssueRule,
-        }))
-        .sort((a, b) => `${a.moduleName}`.localeCompare(`${b.moduleName}`)),
-      deprecations: [...deprecations]
-        .map((d) => d.message)
-        .sort((a, b) => a.localeCompare(b)),
-    }),
-  );
-
-  const title = `Dependency audit triage (${trackingKey})`;
-  const existingNumber = searchIssueByTitle({
-    owner: repo.owner,
-    repo: repo.repo,
-    title,
-    token,
-  });
-
-  if (existingNumber) {
-    githubAnnotate(
-      'notice',
-      `Tracking issue already exists: https://github.com/${repo.owner}/${repo.repo}/issues/${existingNumber}`,
-    );
-    return;
-  }
-
-  const bodyLines: string[] = [
-    'Automated dependency audit triage.',
-    '',
-    `- Branch: ${BRANCH}`,
-    `- Release branch: ${IS_RELEASE_BRANCH}`,
-    '',
-  ];
-
-  if (trackOnlyDev.length > 0) {
-    bodyLines.push('## Dev advisories (track)');
-    for (const advisory of trackOnlyDev) {
-      bodyLines.push(`- ${formatAdvisoryLine(advisory)}`);
-    }
-    bodyLines.push('');
-  }
-
-  if (deprecations.length > 0) {
-    bodyLines.push('## Deprecations');
-    for (const dep of deprecations) {
-      bodyLines.push(`- ${dep.message}`);
-    }
-    bodyLines.push('');
-  }
-
-  bodyLines.push('## Action');
-  bodyLines.push('- Triage and plan remediation.');
-  bodyLines.push('- Include in daily Slack dependency triage message.');
-
-  try {
-    const issueNumber = createIssueViaRest({
-      owner: repo.owner,
-      repo: repo.repo,
-      title,
-      body: bodyLines.join('\n'),
-      token,
-    });
-    githubAnnotate(
-      'notice',
-      `Created tracking issue: https://github.com/${repo.owner}/${repo.repo}/issues/${issueNumber}`,
-    );
-  } catch (error) {
-    githubAnnotate(
-      'warning',
-      `Failed to create tracking issue (check token permissions): ${String(error)}`,
-    );
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -755,9 +566,6 @@ function main() {
       `SLACK_HIGHLIGHT: yarn audit triage needs attention — ${parts.join(', ')}`,
     );
   }
-
-  // Issue creation for new advisories is handled by yarn-audit-diff.mts.
-  // maybeCreateTrackingIssue(trackOnlyDev, deprecations);
 
   buildSummaryAndVerdict({
     advisories,

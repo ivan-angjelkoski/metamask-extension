@@ -24,10 +24,10 @@ import { getGitHubToken } from './shared/github-token.mts';
 //   1. yarn-audit-and-triage.mts  → writes AUDIT_CURRENT_FILE & AUDIT_DETAILS_FILE
 //   2. yarn-audit-diff.mts (this) → reads both, compares current vs baseline
 //
-// Runs on both PRs (blocks merge) and push-to-main (sends Slack alert).
-// The workflow only invokes this script when a real baseline was downloaded
-// from a completed push-to-main run. The `finally` block appends the details
-// file (written by step 1) to the step summary after the diff verdict.
+// Runs on both PRs (blocks merge for production moderate+ advisories)
+// and push-to-main (reports ALL new advisories via Slack + GitHub issue).
+// The `finally` block appends the details file (written by step 1) to the
+// step summary after the diff verdict.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
@@ -74,10 +74,10 @@ function maybeCreateIssue(
       'warning',
       'GITHUB_REPOSITORY not set — skipping issue creation.',
     );
-    return;
+    return null;
   }
   const [owner, repo] = full.split('/');
-  if (!owner || !repo) return;
+  if (!owner || !repo) return null;
 
   let token: string;
   try {
@@ -224,7 +224,7 @@ async function postSlackNotification(
   if (blockingCount > 0) {
     const blockNoun = blockingCount === 1 ? 'advisory' : 'advisories';
     policyText =
-      `${blockingCount} of ${count} ${count === 1 ? 'is' : 'are'} release-blocking (production, moderate+). ` +
+      `${blockingCount} of ${count} ${blockingCount === 1 ? 'is' : 'are'} release-blocking (production, moderate+). ` +
       `PRs will continue to merge, but releases will be blocked until we resolve ${blockingCount === 1 ? 'this' : 'these'} ${blockNoun}.`;
   } else {
     policyText =
