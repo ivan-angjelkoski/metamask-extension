@@ -201,7 +201,6 @@ function maybeCreateIssue(
 async function postSlackNotification(
   advisories: ParsedAdvisory[],
   blockingAdvisories: ParsedAdvisory[],
-  treeText: string,
   issueUrl: string | null,
 ): Promise<void> {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
@@ -234,53 +233,65 @@ async function postSlackNotification(
   }
 
   const webhook = new IncomingWebhook(webhookUrl);
-  await webhook.send({
-    blocks: [
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text:
-            `:warning: *Yarn Audit: ${count} new ${noun}*` +
-            ` just hit branch \`${branch}\`` +
-            ` on \`${repo}\`\n\n` +
-            policyText,
-        },
+
+  // Build advisory sections grouped by blocking / informational.
+  const informational = advisories.filter((a) => !blockingAdvisories.includes(a));
+
+  const formatAdvisory = (a: ParsedAdvisory, includeScope: boolean): string => {
+    const scope = a.affectsProduction ? 'production' : 'dev-only';
+    const meta = includeScope ? `${a.effectiveSeverity}, ${scope}` : a.effectiveSeverity;
+    return `• *${a.moduleName}* (${meta}) — ${a.title}\n  <${a.url}|${a.url.split('/').pop()}>`;
+  };
+
+  const sections: Array<{ type: string; text?: { type: string; text: string }; elements?: Array<{ type: string; text: string }> }> = [
+    {
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text:
+          `:warning: *Yarn Audit: ${count} new ${noun}*` +
+          ` just hit branch \`${branch}\`` +
+          ` on \`${repo}\`\n\n` +
+          policyText,
       },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `\`\`\`\n${treeText}\n\`\`\``,
-        },
+    },
+  ];
+
+  if (blockingAdvisories.length > 0) {
+    sections.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text:
+          `:red_circle: *Release-blocking* (production, moderate+)\n` +
+          blockingAdvisories.map((a) => formatAdvisory(a, false)).join('\n'),
       },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: advisories
-            .map((a) => {
-              const isBlocking = blockingAdvisories.includes(a);
-              const tag = isBlocking
-                ? ':red_circle: *RELEASE-BLOCKING*'
-                : ':large_blue_circle: informational';
-              const scope = a.affectsProduction ? 'production' : 'dev-only';
-              return `• ${a.url}\n   ◦ ${a.moduleName} — ${a.title}\n   ◦ ${tag} · ${scope} · ${a.effectiveSeverity}`;
-            })
-            .join('\n'),
-        },
+    });
+  }
+
+  if (informational.length > 0) {
+    sections.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text:
+          `:large_blue_circle: *Informational* (dev-only or low severity)\n` +
+          informational.map((a) => formatAdvisory(a, true)).join('\n'),
       },
+    });
+  }
+
+  sections.push({
+    type: 'context',
+    elements: [
       {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: `<${runUrl}|View CI Run>${issueUrl ? ` · <${issueUrl}|Tracking Issue>` : ''}`,
-          },
-        ],
+        type: 'mrkdwn',
+        text: `<${runUrl}|View CI Run>${issueUrl ? ` · <${issueUrl}|Tracking Issue>` : ''}`,
       },
     ],
   });
+
+  await webhook.send({ blocks: sections });
   console.log('Slack notification sent.');
 }
 
@@ -400,7 +411,6 @@ async function main() {
   await postSlackNotification(
     newAdvisories,
     blockingAdvisories,
-    treeText,
     issueUrl,
   );
 
