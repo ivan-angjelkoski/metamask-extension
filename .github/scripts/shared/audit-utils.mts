@@ -18,7 +18,6 @@ export type YarnSeverity =
   | 'info'
   | 'low'
   | 'moderate'
-  | 'medium'
   | 'high'
   | 'critical';
 
@@ -74,7 +73,7 @@ export function stripAnsi(text: string): string {
 
 /** Effective severities that block the build (moderate and above). */
 export const BLOCKING_SEVERITIES: ReadonlySet<YarnSeverity> = new Set([
-  'medium',
+  'moderate',
   'high',
   'critical',
 ]);
@@ -82,11 +81,6 @@ export const BLOCKING_SEVERITIES: ReadonlySet<YarnSeverity> = new Set([
 // ---------------------------------------------------------------------------
 // Human-readable advisory tree (plain text, for CI markdown summaries)
 // ---------------------------------------------------------------------------
-
-/** Display-friendly severity — reverses the internal medium→moderate normalization. */
-function displaySeverity(sev: YarnSeverity): string {
-  return sev === 'medium' ? 'moderate' : sev;
-}
 
 /**
  * Extract per-advisory blocks from native `yarn npm audit` output and return
@@ -114,7 +108,7 @@ export function formatAdvisoryTree(a: ParsedAdvisory): string {
   const hasDependents = a.dependents.length > 0;
   const hasSections = hasTreeVersions || hasDependents;
 
-  const sevDisplay = displaySeverity(a.effectiveSeverity);
+  const sevDisplay = a.effectiveSeverity;
 
   const lines: string[] = [];
   lines.push(`└─ ${a.moduleName}`);

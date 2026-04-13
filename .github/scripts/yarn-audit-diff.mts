@@ -235,15 +235,23 @@ async function postSlackNotification(
   const webhook = new IncomingWebhook(webhookUrl);
 
   // Build advisory sections grouped by blocking / informational.
-  const informational = advisories.filter((a) => !blockingAdvisories.includes(a));
+  const informational = advisories.filter(
+    (a) => !blockingAdvisories.includes(a),
+  );
 
   const formatAdvisory = (a: ParsedAdvisory, includeScope: boolean): string => {
     const scope = a.affectsProduction ? 'production' : 'dev-only';
-    const meta = includeScope ? `${a.effectiveSeverity}, ${scope}` : a.effectiveSeverity;
+    const meta = includeScope
+      ? `${a.effectiveSeverity}, ${scope}`
+      : a.effectiveSeverity;
     return `• *${a.moduleName}* (${meta}) — ${a.title}\n  <${a.url}|${a.url.split('/').pop()}>`;
   };
 
-  const sections: Array<{ type: string; text?: { type: string; text: string }; elements?: Array<{ type: string; text: string }> }> = [
+  const sections: Array<{
+    type: string;
+    text?: { type: string; text: string };
+    elements?: Array<{ type: string; text: string }>;
+  }> = [
     {
       type: 'section',
       text: {

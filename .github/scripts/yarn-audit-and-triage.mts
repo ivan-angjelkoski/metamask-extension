@@ -65,12 +65,6 @@ const YARN_SHELL = process.platform === 'win32';
 const noBaseline = process.env.NO_BASELINE === 'true';
 
 function normalizeSeverity(severity: YarnSeverity | undefined): YarnSeverity {
-  // Yarn Berry uses 'moderate' where the npm ecosystem uses 'medium'.
-  // Normalize to 'medium' so the rest of the code only deals with one term.
-  if (severity === 'moderate') {
-    return 'medium';
-  }
-
   return severity ?? 'info';
 }
 
@@ -530,7 +524,7 @@ function main() {
     (a) => a.originalSeverity !== a.effectiveSeverity,
   );
   const trackOnlyDev = devAdvisories.filter(
-    (a) => a.effectiveSeverity === 'low' || a.effectiveSeverity === 'medium',
+    (a) => a.effectiveSeverity === 'low' || a.effectiveSeverity === 'moderate',
   );
 
   // Block release candidates when a moderate+ production advisory is present.
