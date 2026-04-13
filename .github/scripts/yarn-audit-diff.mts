@@ -63,7 +63,7 @@ function maybeCreateIssue(
   advisories: ParsedAdvisory[],
   blockingAdvisories: ParsedAdvisory[],
   treeText: string,
-): string | null {
+): { url: string; isNew: boolean } | null {
   if (process.env.GITHUB_EVENT_NAME !== 'push' || advisories.length === 0) {
     return null;
   }
@@ -120,7 +120,7 @@ function maybeCreateIssue(
     if (typeof match?.number === 'number') {
       const url = `https://github.com/${owner}/${repo}/issues/${match.number}`;
       githubAnnotate('notice', `Tracking issue already exists: ${url}`);
-      return url;
+      return { url, isNew: false };
     }
   } catch {
     // Search failed — proceed to create (worst case: a duplicate).
@@ -183,7 +183,7 @@ function maybeCreateIssue(
     if (typeof json.number === 'number') {
       const url = `https://github.com/${owner}/${repo}/issues/${json.number}`;
       githubAnnotate('notice', `Created tracking issue: ${url}`);
-      return url;
+      return { url, isNew: true };
     }
   } catch (error) {
     githubAnnotate(
@@ -401,18 +401,26 @@ async function main() {
   writeStepSummary(diffSummaryLines.join('\n'));
 
   // On push-to-main, create a GitHub tracking issue (before Slack so we can link it).
-  const issueUrl = maybeCreateIssue(
+  const issueResult = maybeCreateIssue(
     newAdvisories,
     blockingAdvisories,
     treeText,
   );
 
   // On push-to-main, send a Slack notification so the team knows immediately.
-  await postSlackNotification(
-    newAdvisories,
-    blockingAdvisories,
-    issueUrl,
-  );
+  // Skip if the issue already existed — that means we already notified for this
+  // exact set of advisories on a previous push.
+  if (!issueResult || issueResult.isNew) {
+    await postSlackNotification(
+      newAdvisories,
+      blockingAdvisories,
+      issueResult?.url ?? null,
+    );
+  } else {
+    console.log(
+      `Tracking issue already exists (${issueResult.url}) — skipping duplicate Slack notification.`,
+    );
+  }
 
   // On PRs, fail the step only when there are release-blocking advisories.
   // On push-to-main, the step always succeeds (baseline must be uploaded).
