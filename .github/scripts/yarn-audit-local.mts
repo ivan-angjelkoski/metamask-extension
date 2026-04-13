@@ -8,12 +8,13 @@
  */
 
 import { spawnSync } from 'child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import {
   AUDIT_BASELINE_FILE,
   AUDIT_CURRENT_FILE,
   BLOCKING_SEVERITIES,
   extractNativeBlocks,
+  readAdvisories,
   type ParsedAdvisory,
 } from './shared/audit-utils.mts';
 
@@ -104,13 +105,8 @@ async function main() {
     return;
   }
 
-  let current: ParsedAdvisory[];
-  try {
-    current = JSON.parse(readFileSync(AUDIT_CURRENT_FILE, 'utf8'));
-    if (!Array.isArray(current)) {
-      throw new Error('Not an array');
-    }
-  } catch {
+  const current = readAdvisories(AUDIT_CURRENT_FILE);
+  if (!current) {
     console.error(`Failed to parse ${AUDIT_CURRENT_FILE}.`);
     process.exitCode = 1;
     return;

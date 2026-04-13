@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, writeFileSync } from 'fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'fs';
 
 // ---------------------------------------------------------------------------
 // File paths (all under .tmp/, created by the workflow)
@@ -14,12 +14,7 @@ export const AUDIT_NATIVE_FILE = '.tmp/audit-native.txt';
 // Types shared between yarn-audit-and-triage.mts and yarn-audit-diff.mts
 // ---------------------------------------------------------------------------
 
-export type YarnSeverity =
-  | 'info'
-  | 'low'
-  | 'moderate'
-  | 'high'
-  | 'critical';
+export type YarnSeverity = 'info' | 'low' | 'moderate' | 'high' | 'critical';
 
 export type ParsedAdvisory = {
   id: number | null;
@@ -77,6 +72,30 @@ export const BLOCKING_SEVERITIES: ReadonlySet<YarnSeverity> = new Set([
   'high',
   'critical',
 ]);
+
+// ---------------------------------------------------------------------------
+// Advisory I/O
+// ---------------------------------------------------------------------------
+
+/** Default undefined/missing severity to 'info'. */
+export function normalizeSeverity(
+  severity: YarnSeverity | undefined,
+): YarnSeverity {
+  return severity ?? 'info';
+}
+
+/** Read a JSON array of ParsedAdvisory from disk. Returns null on I/O error. */
+export function readAdvisories(filePath: string): ParsedAdvisory[] | null {
+  try {
+    const text = readFileSync(filePath, 'utf8').trim();
+    if (!text || text === '[]') {
+      return [];
+    }
+    return JSON.parse(text) as ParsedAdvisory[];
+  } catch {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Human-readable advisory tree (plain text, for CI markdown summaries)

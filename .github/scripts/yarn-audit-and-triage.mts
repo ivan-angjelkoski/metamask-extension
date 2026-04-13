@@ -9,6 +9,7 @@ import {
   type ParsedAdvisory,
   formatAdvisoryTree,
   githubAnnotate,
+  normalizeSeverity,
   writeStepSummary,
 } from './shared/audit-utils.mts';
 
@@ -63,10 +64,6 @@ const YARN_SHELL = process.platform === 'win32';
 //   yarn audit --environment production --severity moderate
 // i.e. block on any moderate+ severity production advisory.
 const noBaseline = process.env.NO_BASELINE === 'true';
-
-function normalizeSeverity(severity: YarnSeverity | undefined): YarnSeverity {
-  return severity ?? 'info';
-}
 
 function isRedosOrDosIssue(text: string): boolean {
   // Match whole words, case-insensitive.

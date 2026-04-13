@@ -11,6 +11,7 @@ import {
   extractNativeBlocks,
   formatAdvisoryTree,
   githubAnnotate,
+  readAdvisories,
   stripAnsi,
   writeStepSummary,
 } from './shared/audit-utils.mts';
@@ -33,18 +34,6 @@ import { getGitHubToken } from './shared/github-token.mts';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function readAdvisories(filePath: string): ParsedAdvisory[] | null {
-  try {
-    const text = readFileSync(filePath, 'utf8').trim();
-    if (!text || text === '[]') {
-      return [];
-    }
-    return JSON.parse(text) as ParsedAdvisory[];
-  } catch {
-    return null;
-  }
-}
 
 function sevLabel(a: ParsedAdvisory): string {
   return (a.effectiveSeverity ?? 'unknown').toUpperCase();
