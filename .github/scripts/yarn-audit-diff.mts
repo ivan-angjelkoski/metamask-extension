@@ -63,12 +63,12 @@ function maybeCreateIssue(
   advisories: ParsedAdvisory[],
   blockingAdvisories: ParsedAdvisory[],
   treeText: string,
-): void {
+): string | null {
   if (
     process.env.GITHUB_EVENT_NAME !== 'push' ||
     advisories.length === 0
   ) {
-    return;
+    return null;
   }
 
   const full = process.env.GITHUB_REPOSITORY;
@@ -84,7 +84,7 @@ function maybeCreateIssue(
     token = getGitHubToken();
   } catch {
     githubAnnotate('warning', 'No GitHub token available — skipping issue creation.');
-    return;
+    return null;
   }
 
   // Deterministic hash so we don't open duplicates for the same advisory set.
@@ -115,11 +115,9 @@ function maybeCreateIssue(
     };
     const match = json.items?.find((item) => item.title === title);
     if (typeof match?.number === 'number') {
-      githubAnnotate(
-        'notice',
-        `Tracking issue already exists: https://github.com/${owner}/${repo}/issues/${match.number}`,
-      );
-      return;
+      const url = `https://github.com/${owner}/${repo}/issues/${match.number}`;
+      githubAnnotate('notice', `Tracking issue already exists: ${url}`);
+      return url;
     }
   } catch {
     // Search failed — proceed to create (worst case: a duplicate).
@@ -174,10 +172,9 @@ function maybeCreateIssue(
     );
     const json = JSON.parse(raw) as { number?: number };
     if (typeof json.number === 'number') {
-      githubAnnotate(
-        'notice',
-        `Created tracking issue: https://github.com/${owner}/${repo}/issues/${json.number}`,
-      );
+      const url = `https://github.com/${owner}/${repo}/issues/${json.number}`;
+      githubAnnotate('notice', `Created tracking issue: ${url}`);
+      return url;
     }
   } catch (error) {
     githubAnnotate(
@@ -185,6 +182,7 @@ function maybeCreateIssue(
       `Failed to create tracking issue: ${String(error)}`,
     );
   }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +193,7 @@ async function postSlackNotification(
   advisories: ParsedAdvisory[],
   blockingAdvisories: ParsedAdvisory[],
   treeText: string,
+  issueUrl: string | null,
 ): Promise<void> {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
   if (!webhookUrl) {
@@ -265,7 +264,7 @@ async function postSlackNotification(
         elements: [
           {
             type: 'mrkdwn',
-            text: `<${runUrl}|View CI Run>`,
+            text: `<${runUrl}|View CI Run>${issueUrl ? ` · <${issueUrl}|Tracking Issue>` : ''}`,
           },
         ],
       },
@@ -380,11 +379,11 @@ async function main() {
   ];
   writeStepSummary(diffSummaryLines.join('\n'));
 
-  // On push-to-main, send a Slack notification so the team knows immediately.
-  await postSlackNotification(newAdvisories, blockingAdvisories, treeText);
+  // On push-to-main, create a GitHub tracking issue (before Slack so we can link it).
+  const issueUrl = maybeCreateIssue(newAdvisories, blockingAdvisories, treeText);
 
-  // On push-to-main, create a GitHub tracking issue.
-  maybeCreateIssue(newAdvisories, blockingAdvisories, treeText);
+  // On push-to-main, send a Slack notification so the team knows immediately.
+  await postSlackNotification(newAdvisories, blockingAdvisories, treeText, issueUrl);
 
   // On PRs, fail the step only when there are release-blocking advisories.
   // On push-to-main, the step always succeeds (baseline must be uploaded).
