@@ -64,16 +64,16 @@ function maybeCreateIssue(
   blockingAdvisories: ParsedAdvisory[],
   treeText: string,
 ): string | null {
-  if (
-    process.env.GITHUB_EVENT_NAME !== 'push' ||
-    advisories.length === 0
-  ) {
+  if (process.env.GITHUB_EVENT_NAME !== 'push' || advisories.length === 0) {
     return null;
   }
 
   const full = process.env.GITHUB_REPOSITORY;
   if (!full) {
-    githubAnnotate('warning', 'GITHUB_REPOSITORY not set — skipping issue creation.');
+    githubAnnotate(
+      'warning',
+      'GITHUB_REPOSITORY not set — skipping issue creation.',
+    );
     return;
   }
   const [owner, repo] = full.split('/');
@@ -83,7 +83,10 @@ function maybeCreateIssue(
   try {
     token = getGitHubToken();
   } catch {
-    githubAnnotate('warning', 'No GitHub token available — skipping issue creation.');
+    githubAnnotate(
+      'warning',
+      'No GitHub token available — skipping issue creation.',
+    );
     return null;
   }
 
@@ -139,19 +142,25 @@ function maybeCreateIssue(
     bodyLines.push('## Release-blocking (production, moderate+)');
     bodyLines.push('');
     for (const a of blockingAdvisories) {
-      bodyLines.push(`- **${a.moduleName}** (${a.effectiveSeverity}) — ${a.title}`);
+      bodyLines.push(
+        `- **${a.moduleName}** (${a.effectiveSeverity}) — ${a.title}`,
+      );
       bodyLines.push(`  ${a.url}`);
     }
     bodyLines.push('');
   }
 
-  const informational = advisories.filter((a) => !blockingAdvisories.includes(a));
+  const informational = advisories.filter(
+    (a) => !blockingAdvisories.includes(a),
+  );
   if (informational.length > 0) {
     bodyLines.push('## Informational (dev-only or low severity)');
     bodyLines.push('');
     for (const a of informational) {
       const scope = a.affectsProduction ? 'production' : 'dev-only';
-      bodyLines.push(`- **${a.moduleName}** (${a.effectiveSeverity}, ${scope}) — ${a.title}`);
+      bodyLines.push(
+        `- **${a.moduleName}** (${a.effectiveSeverity}, ${scope}) — ${a.title}`,
+      );
       bodyLines.push(`  ${a.url}`);
     }
     bodyLines.push('');
@@ -252,7 +261,9 @@ async function postSlackNotification(
           text: advisories
             .map((a) => {
               const isBlocking = blockingAdvisories.includes(a);
-              const tag = isBlocking ? ':red_circle: *RELEASE-BLOCKING*' : ':large_blue_circle: informational';
+              const tag = isBlocking
+                ? ':red_circle: *RELEASE-BLOCKING*'
+                : ':large_blue_circle: informational';
               const scope = a.affectsProduction ? 'production' : 'dev-only';
               return `• ${a.url}\n   ◦ ${a.moduleName} — ${a.title}\n   ◦ ${tag} · ${scope} · ${a.effectiveSeverity}`;
             })
@@ -313,8 +324,7 @@ async function main() {
 
   // Subset that would block a release: production + moderate+.
   const blockingAdvisories = allNewAdvisories.filter(
-    (a) =>
-      a.affectsProduction && BLOCKING_SEVERITIES.has(a.effectiveSeverity),
+    (a) => a.affectsProduction && BLOCKING_SEVERITIES.has(a.effectiveSeverity),
   );
 
   // On push-to-main we report ALL new advisories (Slack, summary, issue).
@@ -380,10 +390,19 @@ async function main() {
   writeStepSummary(diffSummaryLines.join('\n'));
 
   // On push-to-main, create a GitHub tracking issue (before Slack so we can link it).
-  const issueUrl = maybeCreateIssue(newAdvisories, blockingAdvisories, treeText);
+  const issueUrl = maybeCreateIssue(
+    newAdvisories,
+    blockingAdvisories,
+    treeText,
+  );
 
   // On push-to-main, send a Slack notification so the team knows immediately.
-  await postSlackNotification(newAdvisories, blockingAdvisories, treeText, issueUrl);
+  await postSlackNotification(
+    newAdvisories,
+    blockingAdvisories,
+    treeText,
+    issueUrl,
+  );
 
   // On PRs, fail the step only when there are release-blocking advisories.
   // On push-to-main, the step always succeeds (baseline must be uploaded).

@@ -101,6 +101,19 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       # --- Audit ---
+      # TEST HACK: trim test advisory IDs from baseline to simulate new advisories.
+      # Remove this step before merging to main.
+      - name: "TEST HACK: trim baseline"
+        if: ${{ steps.download-baseline.outcome == 'success' }}
+        run: |
+          node -e "
+            const f = '.tmp/audit-baseline.json';
+            const a = JSON.parse(require('fs').readFileSync(f,'utf8'));
+            const remove = new Set([1115805, 1115809, 1116475]);
+            require('fs').writeFileSync(f, JSON.stringify(a.filter(x => !remove.has(x.id)), null, 2));
+            console.log('Trimmed baseline from', a.length, 'to', a.filter(x => !remove.has(x.id)).length);
+          "
+
       - name: Check for vulnerabilities
         if: ${{ !cancelled() }}
         env:
