@@ -703,10 +703,10 @@ function main() {
   // the real tree blocks instead of reconstructing them from JSON.
   // Use --all (no environment filter) and no --severity filter so every
   // advisory is present — the diff step decides what to report.
-  const nativeResult = spawnSync(
-    `${YARN_BIN} npm audit --recursive --all`,
-    { encoding: 'utf8', shell: true },
-  );
+  const nativeResult = spawnSync(`${YARN_BIN} npm audit --recursive --all`, {
+    encoding: 'utf8',
+    shell: true,
+  });
   writeFileSync(
     AUDIT_NATIVE_FILE,
     `${nativeResult.stdout ?? ''}${nativeResult.stderr ?? ''}`,

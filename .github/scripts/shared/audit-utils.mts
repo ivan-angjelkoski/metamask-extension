@@ -67,6 +67,11 @@ export function writeStepSummary(text: string): void {
 // Severity gate (matches `yarn audit --severity moderate`)
 // ---------------------------------------------------------------------------
 
+/** Strip ANSI escape codes from a string (SGR sequences like colors/bold). */
+export function stripAnsi(text: string): string {
+  return text.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
 /** Effective severities that block the build (moderate and above). */
 export const BLOCKING_SEVERITIES: ReadonlySet<YarnSeverity> = new Set([
   'medium',

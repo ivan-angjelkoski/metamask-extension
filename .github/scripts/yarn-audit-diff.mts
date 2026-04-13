@@ -9,6 +9,7 @@ import {
   type ParsedAdvisory,
   extractNativeBlocks,
   formatAdvisoryTree,
+  stripAnsi,
   writeStepSummary,
 } from './shared/audit-utils.mts';
 
@@ -109,7 +110,12 @@ async function postSlackNotification(
         text: {
           type: 'mrkdwn',
           text: advisories
-            .map((a) => `• ${a.url}\n   ◦ ${a.moduleName} — ${a.title}`)
+            .map((a) => {
+              const isBlocking = blockingAdvisories.includes(a);
+              const tag = isBlocking ? ':red_circle: *RELEASE-BLOCKING*' : ':large_blue_circle: informational';
+              const scope = a.affectsProduction ? 'production' : 'dev-only';
+              return `• ${a.url}\n   ◦ ${a.moduleName} — ${a.title}\n   ◦ ${tag} · ${scope} · ${a.effectiveSeverity}`;
+            })
             .join('\n'),
         },
       },
@@ -199,13 +205,15 @@ async function main() {
 
   // Prefer the real native tree output (written by triage step) so that
   // Dependents, Tree Versions, etc. match `yarn npm audit` exactly.
+  // Strip ANSI color codes — the output may contain them depending on the
+  // CI runner's terminal capabilities.
   let treeText: string;
   if (existsSync(AUDIT_NATIVE_FILE)) {
     const native = readFileSync(AUDIT_NATIVE_FILE, 'utf8');
     const newIds = new Set(
       newAdvisories.map((a) => a.id).filter((id): id is number => id !== null),
     );
-    const blocks = extractNativeBlocks(native, newIds);
+    const blocks = extractNativeBlocks(native, newIds).map(stripAnsi);
     treeText =
       blocks.length > 0
         ? blocks.join('\n')
