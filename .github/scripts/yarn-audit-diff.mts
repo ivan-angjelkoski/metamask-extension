@@ -51,6 +51,7 @@ function sevLabel(a: ParsedAdvisory): string {
 
 async function postSlackNotification(
   advisories: ParsedAdvisory[],
+  blockingAdvisories: ParsedAdvisory[],
   treeText: string,
 ): Promise<void> {
   const webhookUrl = process.env.SLACK_WEBHOOK_URL;
@@ -68,6 +69,19 @@ async function postSlackNotification(
   const runUrl = `https://github.com/${repo}/actions/runs/${runId}`;
   const count = advisories.length;
   const noun = count === 1 ? 'advisory' : 'advisories';
+  const blockingCount = blockingAdvisories.length;
+
+  let policyText: string;
+  if (blockingCount > 0) {
+    const blockNoun = blockingCount === 1 ? 'advisory' : 'advisories';
+    policyText =
+      `${blockingCount} of ${count} ${count === 1 ? 'is' : 'are'} release-blocking (production, moderate+). ` +
+      `PRs will continue to merge, but releases will be blocked until we resolve ${blockingCount === 1 ? 'this' : 'these'} ${blockNoun}.`;
+  } else {
+    policyText =
+      `None are release-blocking (all dev-only or low severity). ` +
+      `PRs and releases are not affected, but these should still be tracked.`;
+  }
 
   const webhook = new IncomingWebhook(webhookUrl);
   await webhook.send({
@@ -80,8 +94,7 @@ async function postSlackNotification(
             `:warning: *Yarn Audit: ${count} new ${noun}*` +
             ` just hit branch \`${branch}\`` +
             ` on \`${repo}\`\n\n` +
-            'The new policy we just implemented will allow PRs to continue to merge, but' +
-            ` releases will be blocked until we resolve ${count === 1 ? 'this' : 'these'} ${noun}.`,
+            policyText,
         },
       },
       {
@@ -142,17 +155,25 @@ async function main() {
   // ------------------------------------------------------------------
   // Diff: advisories present in current but not in baseline (by GHSA ID)
   // ------------------------------------------------------------------
+  const isPush = process.env.GITHUB_EVENT_NAME === 'push';
   const baselineIds = new Set(
     baseline.map((a) => a.id).filter((id): id is number => id !== null),
   );
 
-  const newAdvisories = current.filter(
-    (a) =>
-      a.id !== null &&
-      !baselineIds.has(a.id as number) &&
-      a.affectsProduction &&
-      BLOCKING_SEVERITIES.has(a.effectiveSeverity),
+  // All advisories whose ID is new (not in the baseline).
+  const allNewAdvisories = current.filter(
+    (a) => a.id !== null && !baselineIds.has(a.id as number),
   );
+
+  // Subset that would block a release: production + moderate+.
+  const blockingAdvisories = allNewAdvisories.filter(
+    (a) =>
+      a.affectsProduction && BLOCKING_SEVERITIES.has(a.effectiveSeverity),
+  );
+
+  // On push-to-main we report ALL new advisories (Slack, summary, issue).
+  // On PRs we only fail for the blocking subset.
+  const newAdvisories = isPush ? allNewAdvisories : blockingAdvisories;
 
   if (newAdvisories.length === 0) {
     console.log(
@@ -162,13 +183,17 @@ async function main() {
     return;
   }
 
-  // New advisories found — fail the job.
+  // New advisories found.
   console.log(
-    `Found ${newAdvisories.length} new advisory/advisories not in baseline.`,
+    `Found ${newAdvisories.length} new advisory/advisories not in baseline` +
+      (isPush && blockingAdvisories.length !== newAdvisories.length
+        ? ` (${blockingAdvisories.length} release-blocking).`
+        : '.'),
   );
   for (const a of newAdvisories) {
+    const level = blockingAdvisories.includes(a) ? 'error' : 'warning';
     console.log(
-      `::error::New advisory [${sevLabel(a)}]: ${a.moduleName} — ${a.title} (${a.url})`,
+      `::${level}::New advisory [${sevLabel(a)}]: ${a.moduleName} — ${a.title} (${a.url})`,
     );
   }
 
@@ -191,9 +216,11 @@ async function main() {
 
   const diffSummaryLines = [
     '',
-    `### yarn audit: **FAILED** — ${newAdvisories.length} new advisor${newAdvisories.length === 1 ? 'y' : 'ies'}`,
+    `### yarn audit: ${isPush ? '**new advisories on main**' : '**FAILED**'} — ${newAdvisories.length} new advisor${newAdvisories.length === 1 ? 'y' : 'ies'}`,
     '',
-    'Your dependency changes introduced new vulnerabilities. If a newer version of the package is available, upgrade to it.',
+    isPush
+      ? `${newAdvisories.length} new advisor${newAdvisories.length === 1 ? 'y' : 'ies'} detected on push to main (${blockingAdvisories.length} release-blocking).`
+      : 'Your dependency changes introduced new vulnerabilities. If a newer version of the package is available, upgrade to it.',
     '',
     '```',
     treeText,
@@ -205,9 +232,13 @@ async function main() {
   writeStepSummary(diffSummaryLines.join('\n'));
 
   // On push-to-main, send a Slack notification so the team knows immediately.
-  await postSlackNotification(newAdvisories, treeText);
+  await postSlackNotification(newAdvisories, blockingAdvisories, treeText);
 
-  process.exitCode = 1;
+  // On PRs, fail the step only when there are release-blocking advisories.
+  // On push-to-main, the step always succeeds (baseline must be uploaded).
+  if (!isPush && blockingAdvisories.length > 0) {
+    process.exitCode = 1;
+  }
 }
 
 try {
