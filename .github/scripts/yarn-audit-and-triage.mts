@@ -42,15 +42,9 @@ type YarnAuditTreeNode = {
   children?: unknown;
 };
 
-type DeprecationFinding = {
-  message: string;
-};
-
 const DEFAULT_BRANCH = 'main';
 const BRANCH = process.env.BRANCH ?? DEFAULT_BRANCH;
 const IS_RELEASE_BRANCH = BRANCH.startsWith('release/');
-
-const CHECK_DEPRECATIONS = process.env.CHECK_DEPRECATIONS !== 'false';
 
 const SLACK_HIGHLIGHT = process.env.SLACK_HIGHLIGHT !== 'false';
 
@@ -197,50 +191,6 @@ function runYarnAudit(): { prod: unknown[]; dev: unknown[] } {
   return { prod, dev };
 }
 
-function runYarnInstallForDeprecations(): DeprecationFinding[] {
-  if (!CHECK_DEPRECATIONS) {
-    return [];
-  }
-
-  // Yarn classic prints install warnings (including deprecations). We re-run
-  // install with scripts disabled to collect deprecation warnings.
-  const result = spawnSync(
-    `${YARN_BIN} install --immutable --immutable-cache --ignore-scripts --mode=skip-build --json`,
-    {
-      encoding: 'utf8',
-      shell: true,
-    },
-  );
-
-  const combined = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
-  const lines = parseJsonLines(combined);
-
-  const deprecations: DeprecationFinding[] = [];
-  for (const line of lines) {
-    if (!line || typeof line !== 'object') {
-      continue;
-    }
-
-    const parsed = line as { type?: unknown; data?: unknown };
-
-    if (parsed.type !== 'warning') {
-      continue;
-    }
-
-    const message = (parsed.data as { message?: unknown } | undefined)?.message;
-    if (typeof message !== 'string') {
-      continue;
-    }
-
-    if (/deprecated/i.test(message)) {
-      deprecations.push({ message });
-    }
-  }
-
-  // Best-effort only; don't fail health checks if Yarn install exits non-zero.
-  return deprecations;
-}
-
 function extractAdvisories(records: unknown[]): ParsedAdvisory[] {
   const advisories: ParsedAdvisory[] = [];
 
@@ -294,7 +244,6 @@ function buildSummaryAndVerdict({
   advisories,
   prodAdvisories,
   devAdvisories,
-  deprecations,
   downgraded,
   trackOnlyDev,
   blockReleaseCandidate,
@@ -302,7 +251,6 @@ function buildSummaryAndVerdict({
   advisories: ParsedAdvisory[];
   prodAdvisories: ParsedAdvisory[];
   devAdvisories: ParsedAdvisory[];
-  deprecations: DeprecationFinding[];
   downgraded: ParsedAdvisory[];
   trackOnlyDev: ParsedAdvisory[];
   blockReleaseCandidate: boolean;
@@ -318,11 +266,6 @@ function buildSummaryAndVerdict({
   detailsLines.push(
     `- Advisories: **${advisories.length}** (prod: **${prodAdvisories.length}**, dev: **${devAdvisories.length}**)`,
   );
-  detailsLines.push(
-    `- Deprecations: **${deprecations.length}**${
-      CHECK_DEPRECATIONS ? '' : ' (check disabled)'
-    }`,
-  );
   detailsLines.push('');
 
   if (downgraded.length > 0) {
@@ -334,14 +277,11 @@ function buildSummaryAndVerdict({
     detailsLines.push('');
   }
 
-  if (trackOnlyDev.length > 0 || deprecations.length > 0) {
+  if (trackOnlyDev.length > 0) {
     detailsLines.push('### Track (issue + Slack reminder)');
     detailsLines.push('');
     for (const advisory of trackOnlyDev) {
       detailsLines.push(`- ${formatAdvisoryLine(advisory)}`);
-    }
-    for (const dep of deprecations) {
-      detailsLines.push(`- [deprecation] ${dep.message}`);
     }
     detailsLines.push('');
   }
@@ -491,7 +431,6 @@ function main() {
   }
 
   const advisories = merged;
-  const deprecations = runYarnInstallForDeprecations();
 
   // Write the current advisories to disk for use by the audit-diff step.
   writeFileSync(
@@ -535,7 +474,6 @@ function main() {
         branch: BRANCH,
         isReleaseBranch: IS_RELEASE_BRANCH,
         advisories,
-        deprecations,
         blockReleaseCandidate,
       },
       null,
@@ -544,13 +482,10 @@ function main() {
   );
 
   // Slack highlight: emit a single, copy-pastable line.
-  if (SLACK_HIGHLIGHT && (trackOnlyDev.length > 0 || deprecations.length > 0)) {
+  if (SLACK_HIGHLIGHT && trackOnlyDev.length > 0) {
     const parts: string[] = [];
     for (const advisory of trackOnlyDev) {
       parts.push(`${advisory.moduleName}(${advisory.effectiveSeverity})`);
-    }
-    if (deprecations.length > 0) {
-      parts.push(`deprecations:${deprecations.length}`);
     }
     console.log(
       `SLACK_HIGHLIGHT: yarn audit triage needs attention — ${parts.join(', ')}`,
@@ -561,7 +496,6 @@ function main() {
     advisories,
     prodAdvisories,
     devAdvisories,
-    deprecations,
     downgraded,
     trackOnlyDev,
     blockReleaseCandidate,
