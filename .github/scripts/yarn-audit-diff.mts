@@ -35,6 +35,12 @@ import { getGitHubToken } from './shared/github-token.mts';
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Max advisories to list per section before truncating. */
+const MAX_LISTED = 20;
+
+/** Max characters for the native tree in a GitHub issue body. */
+const MAX_ISSUE_BODY_TREE = 50_000;
+
 function sevLabel(a: ParsedAdvisory): string {
   return (a.effectiveSeverity ?? 'unknown').toUpperCase();
 }
@@ -158,7 +164,12 @@ function maybeCreateIssue(
   bodyLines.push('<details><summary>Native audit tree</summary>');
   bodyLines.push('');
   bodyLines.push('```');
-  bodyLines.push(treeText);
+  if (treeText.length > MAX_ISSUE_BODY_TREE) {
+    bodyLines.push(treeText.slice(0, MAX_ISSUE_BODY_TREE));
+    bodyLines.push(`\n… (truncated — see CI run for full output)`);
+  } else {
+    bodyLines.push(treeText);
+  }
   bodyLines.push('```');
   bodyLines.push('</details>');
 
@@ -255,25 +266,31 @@ async function postSlackNotification(
   ];
 
   if (blockingAdvisories.length > 0) {
+    const shown = blockingAdvisories.slice(0, MAX_LISTED);
+    const overflow = blockingAdvisories.length - shown.length;
     sections.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
         text:
           `:red_circle: *Release-blocking* (production, moderate+)\n` +
-          blockingAdvisories.map((a) => formatAdvisory(a, false)).join('\n'),
+          shown.map((a) => formatAdvisory(a, false)).join('\n') +
+          (overflow > 0 ? `\n_…and ${overflow} more_` : ''),
       },
     });
   }
 
   if (informational.length > 0) {
+    const shown = informational.slice(0, MAX_LISTED);
+    const overflow = informational.length - shown.length;
     sections.push({
       type: 'section',
       text: {
         type: 'mrkdwn',
         text:
           `:large_blue_circle: *Informational* (dev-only or low severity)\n` +
-          informational.map((a) => formatAdvisory(a, true)).join('\n'),
+          shown.map((a) => formatAdvisory(a, true)).join('\n') +
+          (overflow > 0 ? `\n_…and ${overflow} more_` : ''),
       },
     });
   }
@@ -307,15 +324,19 @@ async function main() {
   }
 
   const baseline = readAdvisories(AUDIT_BASELINE_FILE);
-  if (!baseline || baseline.length === 0) {
-    // Should not happen — the workflow only runs this step when the baseline
-    // was successfully downloaded. Log a warning and pass through.
+  if (baseline === null) {
+    // I/O error — should not happen since the workflow only runs this step
+    // when the baseline was successfully downloaded.
     console.log(
-      '::warning::Baseline file is empty or missing; nothing to diff.',
+      '::warning::Baseline file is missing or unreadable; nothing to diff.',
     );
-    writeStepSummary(`\n> **Audit diff:** Baseline empty — skipping diff.\n`);
+    writeStepSummary(
+      `\n> **Audit diff:** Baseline unreadable — skipping diff.\n`,
+    );
     return;
   }
+  // baseline may be [] if main has zero advisories — that's legitimate;
+  // every current advisory is genuinely new in that case.
 
   // ------------------------------------------------------------------
   // Diff: advisories present in current but not in baseline (by GHSA ID)

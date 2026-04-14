@@ -55,7 +55,6 @@ const CHECK_DEPRECATIONS = process.env.CHECK_DEPRECATIONS !== 'false';
 const SLACK_HIGHLIGHT = process.env.SLACK_HIGHLIGHT !== 'false';
 
 const YARN_BIN = 'yarn';
-const YARN_SHELL = process.platform === 'win32';
 
 // Set by the workflow when no baseline artifact could be downloaded — either
 // the baseline is missing (first rollout / expired artifact) or this is a fork

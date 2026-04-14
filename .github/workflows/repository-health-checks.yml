@@ -55,9 +55,18 @@ jobs:
       # merge queue it has already passed the diff check. Any new advisory
       # that appeared on main since then wasn't introduced by this PR and
       # will be surfaced by the next push-to-main run.
+      #
+      # schedule (cron) runs also diff against the latest baseline. This
+      # catches newly published CVEs overnight — even when no code was pushed —
+      # and sends a Slack alert. The cron schedule is defined in main.yml.
       - name: Find latest completed push-to-main run
         id: find-baseline-run
-        if: ${{ github.event_name == 'pull_request' || github.event_name == 'push' }}
+        if: >-
+          ${{
+            github.event_name == 'pull_request'
+            || github.event_name == 'push'
+            || github.event_name == 'schedule'
+          }}
         continue-on-error: true
         uses: actions/github-script@v8
         with:
@@ -116,18 +125,37 @@ jobs:
       # On push-to-main, rename the audit output to audit-baseline.json so the
       # uploaded artifact name matches what PR runs download to .tmp.
       - name: Rename audit baseline
-        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: >-
+          ${{
+            !cancelled()
+            && github.event_name == 'push'
+            && github.ref == 'refs/heads/main'
+          }}
         run: mv .tmp/audit-current.json .tmp/audit-baseline.json
 
       - name: Upload audit baseline artifact
-        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: >-
+          ${{
+            !cancelled()
+            && github.event_name == 'push'
+            && github.ref == 'refs/heads/main'
+          }}
         uses: actions/upload-artifact@v7
         with:
           name: audit-baseline
           path: .tmp/audit-baseline.json
 
       - name: Upload audit baseline to S3
-        if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'MetaMask/metamask-extension' && vars.AWS_REGION && vars.AWS_IAM_ROLE && vars.AWS_S3_BUCKET }}
+        if: >-
+          ${{
+            !cancelled()
+            && github.event_name == 'push'
+            && github.ref == 'refs/heads/main'
+            && github.repository == 'MetaMask/metamask-extension'
+            && vars.AWS_REGION
+            && vars.AWS_IAM_ROLE
+            && vars.AWS_S3_BUCKET
+          }}
         uses: MetaMask/github-tools/.github/actions/upload-s3@v1
         with:
           aws-region: ${{ vars.AWS_REGION }}
