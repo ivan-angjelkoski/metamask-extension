@@ -34,19 +34,19 @@ extraction safe — there are no platform APIs to untangle.
 
 ## Modules
 
-| Module | Responsibility |
-|---|---|
-| `vault-management/` | Keyring unlock, vault creation/restore, password verification |
-| `account-management/` | Account selection, labelling, removal |
-| `permission-management/` | Approval resolution, permission grants/revocations |
-| `transaction-lifecycle/` | Transaction submission, cancellation, speed-up |
-| `token-resolution/` | Token standard detection, symbol/decimal lookup |
-| `snap-management/` | Snap install, enable/disable, request handling |
+| Module                   | Responsibility                                                |
+| ------------------------ | ------------------------------------------------------------- |
+| `vault-management/`      | Keyring unlock, vault creation/restore, password verification |
+| `account-management/`    | Account selection, labelling, removal                         |
+| `permission-management/` | Approval resolution, permission grants/revocations            |
+| `transaction-lifecycle/` | Transaction submission, cancellation, speed-up                |
+| `token-resolution/`      | Token standard detection, symbol/decimal lookup               |
+| `snap-management/`       | Snap install, enable/disable, request handling                |
 
 ## Extension-specific modules (sibling directories)
 
-| Module | Responsibility |
-|---|---|
-| `../connection-manager/` | Active port/stream lifecycle (holds `chrome.runtime.Port` refs) |
-| `../session-manager/` | Login token storage via `chrome.storage.session` |
-| `../controller-subscriptions/` | UI-sync subscription wiring |
+| Module                         | Responsibility                                                  |
+| ------------------------------ | --------------------------------------------------------------- |
+| `../connection-manager/`       | Active port/stream lifecycle (holds `chrome.runtime.Port` refs) |
+| `../session-manager/`          | Login token storage via `chrome.storage.session`                |
+| `../controller-subscriptions/` | UI-sync subscription wiring                                     |

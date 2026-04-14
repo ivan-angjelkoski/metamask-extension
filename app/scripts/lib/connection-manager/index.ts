@@ -62,7 +62,9 @@ export class ConnectionManager {
     this.#messenger.call('PhishingController:maybeUpdateState');
 
     // TODO: wire JsonRpcEngine with PPOM + phishing + provider middleware
-    const engine = { /* JsonRpcEngine instance */ };
+    const engine = {
+      /* JsonRpcEngine instance */
+    };
     this.#connections.set(key, { engine });
 
     port.onDisconnect.addListener(() => this.#onPortDisconnect(key));

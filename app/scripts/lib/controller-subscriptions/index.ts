@@ -14,11 +14,9 @@
  *   _registerSubscriptions, configureControllersOnNetworkChange
  */
 
-import type { ControllerRegistry } from '../ControllerRegistry';
 import type { RootMessenger } from '../messenger';
 
 export type ControllerSubscriptionsDependencies = {
-  registry: ControllerRegistry;
   messenger: RootMessenger;
 };
 
