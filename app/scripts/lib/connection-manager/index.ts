@@ -24,14 +24,22 @@
  */
 
 import type { Runtime } from 'webextension-polyfill';
-import type { RootMessenger } from '../messenger';
 
 type ConnectionState = {
   engine: unknown; // JsonRpcEngine
 };
 
+/**
+ * Subset of the Messenger interface required by connection-manager.
+ * Structural — satisfied by extension RootMessenger, mobile EngineMessenger,
+ * or any test double providing these call overloads.
+ */
+type ConnectionManagerMessenger = {
+  call(action: 'PhishingController:maybeUpdateState'): void;
+};
+
 type ConnectionManagerDependencies = {
-  messenger: RootMessenger;
+  messenger: ConnectionManagerMessenger;
 };
 
 /**
@@ -41,7 +49,7 @@ type ConnectionManagerDependencies = {
 export class ConnectionManager {
   readonly #connections: Map<string, ConnectionState> = new Map();
 
-  readonly #messenger: RootMessenger;
+  readonly #messenger: ConnectionManagerMessenger;
 
   constructor(deps: ConnectionManagerDependencies) {
     this.#messenger = deps.messenger;

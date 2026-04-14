@@ -100,10 +100,7 @@ type TransactionLifecycleMessenger = {
     action: 'TransactionController:isAtomicBatchSupported',
     opts: { address: string; chainIds: string[] },
   ): Promise<unknown>;
-  registerActionHandler(
-    name: string,
-    handler: (...args: unknown[]) => unknown,
-  ): void;
+  registerActionHandler(name: string, handler: (...args: any[]) => any): void;
 };
 
 export type TransactionLifecycleDependencies = {

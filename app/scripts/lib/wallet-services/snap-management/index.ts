@@ -60,10 +60,7 @@ type SnapManagementMessenger = {
     origin: string,
     networkClientId?: string,
   ): Promise<void>;
-  registerActionHandler(
-    name: string,
-    handler: (...args: unknown[]) => unknown,
-  ): void;
+  registerActionHandler(name: string, handler: (...args: any[]) => any): void;
 };
 
 export type SnapManagementDependencies = {

@@ -252,10 +252,7 @@ type VaultManagementMessenger = {
   ): Promise<void>;
 
   // registerActionHandler — used in registerActions
-  registerActionHandler(
-    name: string,
-    handler: (...args: unknown[]) => unknown,
-  ): void;
+  registerActionHandler(name: string, handler: (...args: any[]) => any): void;
 };
 
 export type VaultDependencies = {
@@ -613,7 +610,7 @@ export async function createSeedPhraseBackup(
 export async function fetchAllSecretData(
   deps: VaultDependencies,
   password: string,
-): Promise<Buffer[]> {
+): Promise<Array<{ data: Uint8Array; type: string }>> {
   const allSeedPhrases = await deps.messenger.call(
     'SeedlessOnboardingController:fetchAllSecretData',
     password,
@@ -984,8 +981,6 @@ export async function restoreSeedPhrasesToVault(
   secretDatas: Array<{
     data: Uint8Array;
     type: string;
-    timestamp: number;
-    version: number;
   }>,
 ): Promise<void> {
   const isSocialLoginFlow = deps.messenger.call(
@@ -1121,12 +1116,15 @@ export async function submitPasswordOrEncryptionKey(
       encryptionKey,
     );
   } else {
-    await deps.messenger.call('KeyringController:submitPassword', password);
+    await deps.messenger.call(
+      'KeyringController:submitPassword',
+      password as string,
+    );
     if (isSocialLoginFlow) {
       // unlock the seedless onboarding vault
       await deps.messenger.call(
         'SeedlessOnboardingController:submitPassword',
-        password,
+        password as string,
       );
     }
   }
@@ -1474,8 +1472,6 @@ export function registerActions(messenger: VaultManagementMessenger): void {
       secretDatas: Array<{
         data: Uint8Array;
         type: string;
-        timestamp: number;
-        version: number;
       }>,
     ) => restoreSeedPhrasesToVault(deps, secretDatas),
   );

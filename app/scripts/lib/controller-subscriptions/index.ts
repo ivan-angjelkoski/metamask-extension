@@ -14,10 +14,30 @@
  *   _registerSubscriptions, configureControllersOnNetworkChange
  */
 
-import type { RootMessenger } from '../messenger';
+/**
+ * Subset of the Messenger interface required by controller-subscriptions.
+ * Structural — satisfied by extension RootMessenger, mobile EngineMessenger,
+ * or any test double providing these call/subscribe overloads.
+ */
+type ControllerSubscriptionsMessenger = {
+  subscribe(event: 'KeyringController:lock', callback: () => void): void;
+  subscribe(event: 'KeyringController:unlock', callback: () => void): void;
+  subscribe(
+    event: 'NetworkController:networkDidChange',
+    callback: () => void,
+  ): void;
+  subscribe(
+    event: 'AccountsController:selectedAccountChange',
+    callback: () => void,
+  ): void;
+  call(action: 'SessionManager:onLock'): void;
+  call(action: 'SessionManager:onUnlock'): void;
+  call(action: 'AccountTrackerController:refresh'): Promise<void>;
+  call(action: 'TokenDetectionController:restart'): void;
+};
 
 export type ControllerSubscriptionsDependencies = {
-  messenger: RootMessenger;
+  messenger: ControllerSubscriptionsMessenger;
 };
 
 /**

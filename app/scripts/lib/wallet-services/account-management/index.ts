@@ -49,7 +49,7 @@ type AccountManagementMessenger = {
       };
       metadata: { id: string };
     }) => Promise<unknown>,
-  ): Promise<unknown>;
+  ): Promise<any>;
   call(
     action: 'KeyringController:importAccountWithStrategy',
     strategy: string,
@@ -89,10 +89,7 @@ type AccountManagementMessenger = {
     action: 'AccountManagement:removeAccount',
     address: string,
   ): Promise<void>;
-  registerActionHandler(
-    name: string,
-    handler: (...args: unknown[]) => unknown,
-  ): void;
+  registerActionHandler(name: string, handler: (...args: any[]) => any): void;
 };
 
 export type AccountManagementDependencies = {

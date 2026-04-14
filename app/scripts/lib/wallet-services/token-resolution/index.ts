@@ -41,10 +41,7 @@ type TokenResolutionMessenger = {
     action: 'AssetsContractController:getERC20TokenInfo',
     tokenAddress: string,
   ): Promise<{ symbol: string; decimals: number; name: string }>;
-  registerActionHandler(
-    name: string,
-    handler: (...args: unknown[]) => unknown,
-  ): void;
+  registerActionHandler(name: string, handler: (...args: any[]) => any): void;
 };
 
 export type TokenResolutionDependencies = {

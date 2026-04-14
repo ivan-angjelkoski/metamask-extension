@@ -14,10 +14,26 @@
  *   resetState
  */
 
-import type { RootMessenger } from '../messenger';
+/**
+ * Subset of the Messenger interface required by session-manager.
+ * Structural — satisfied by extension RootMessenger, mobile EngineMessenger,
+ * or any test double providing these call overloads.
+ */
+type SessionManagerMessenger = {
+  call(action: 'KeyringController:setLocked'): Promise<void>;
+  call(
+    action: 'ConnectionManager:notifyAllConnections',
+    notification: { method: string; params?: unknown },
+  ): void;
+  call(action: 'AccountTrackerController:clearAccounts'): void;
+  call(action: 'AccountTrackerController:syncWithAddresses'): void;
+  call(action: 'PreferencesController:clearState'): void;
+  call(action: 'TransactionController:clearState'): void;
+  call(action: 'PermissionController:clearState'): void;
+};
 
 export type SessionManagerDependencies = {
-  messenger: RootMessenger;
+  messenger: SessionManagerMessenger;
   notificationManager: { closeAllNotifications(): Promise<void> };
 };
 

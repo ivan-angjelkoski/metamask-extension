@@ -81,10 +81,7 @@ type PermissionManagementMessenger = {
     chainId: string,
   ): void;
   call(action: 'NetworkController:lookupNetwork'): Promise<void>;
-  registerActionHandler(
-    name: string,
-    handler: (...args: unknown[]) => unknown,
-  ): void;
+  registerActionHandler(name: string, handler: (...args: any[]) => any): void;
 };
 
 export type PermissionManagementDependencies = {
