@@ -181,9 +181,9 @@ function renderChromiumCameraHint(params: { hintText: string }) {
         </Box>
         <Box style={{ flex: 1, minWidth: 0 }}>
           <Text
-            variant={TextVariant.BodyMd}
+            variant={TextVariant.BodySm}
             textAlign={TextAlign.Left}
-            color={TextColor.TextDefault}
+            color={TextColor.TextAlternative}
           >
             {hintText}
           </Text>
@@ -258,7 +258,7 @@ export const CameraAccessErrorContent = (
         <Text
           variant={TextVariant.BodyMd}
           textAlign={TextAlign.Center}
-          color={TextColor.TextDefault}
+          color={TextColor.TextAlternative}
         >
           {body}
         </Text>
