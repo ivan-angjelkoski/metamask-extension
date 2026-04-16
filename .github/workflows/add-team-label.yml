@@ -12,6 +12,6 @@ jobs:
     steps:
       - name: Add team label
         if: ${{ !github.event.pull_request.head.repo.fork }}
-        uses: MetaMask/github-tools/.github/actions/add-team-label@v1
+        uses: MetaMask/github-tools/.github/actions/add-team-label@node-24
         with:
           team-label-token: ${{ secrets.TEAM_LABEL_TOKEN }}

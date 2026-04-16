@@ -75,7 +75,7 @@ jobs:
       - name: Check pull request merge queue status
         id: check-skip-merge-queue
         if: ${{ env.EVENT_NAME == 'merge_group' }}
-        uses: MetaMask/github-tools/.github/actions/check-skip-merge-queue@v1
+        uses: MetaMask/github-tools/.github/actions/check-skip-merge-queue@node-24
 
       - uses: actions/checkout@v6
         if: ${{ steps.check-skip-merge-queue.outputs.up-to-date != 'true' }}

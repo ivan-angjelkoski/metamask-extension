@@ -57,7 +57,7 @@ jobs:
 
       - name: Merge approved version bump PR
         if: ${{ steps.check-branch.outputs.version-bump == 'true' }}
-        uses: MetaMask/github-tools/.github/actions/merge-approved-pr@v1
+        uses: MetaMask/github-tools/.github/actions/merge-approved-pr@node-24
         with:
           pr-number: ${{ github.event.issue.number }}
           # Merge PRs from version-bump/X.Y.Z into main
@@ -69,7 +69,7 @@ jobs:
 
       - name: Merge approved stable main PR
         if: ${{ steps.check-branch.outputs.stable-main == 'true' }}
-        uses: MetaMask/github-tools/.github/actions/merge-approved-pr@v1
+        uses: MetaMask/github-tools/.github/actions/merge-approved-pr@node-24
         with:
           pr-number: ${{ github.event.issue.number }}
           # Merge PRs from stable-main-X.Y.Z into main

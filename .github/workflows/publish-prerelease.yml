@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload test plan to S3
         if: ${{ steps.generate-test-plan.outputs.test_plan_generated == 'true' && vars.AWS_REGION && vars.AWS_IAM_ROLE && vars.AWS_S3_BUCKET }}
-        uses: MetaMask/github-tools/.github/actions/upload-s3@v1
+        uses: MetaMask/github-tools/.github/actions/upload-s3@node-24
         with:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_IAM_ROLE }}

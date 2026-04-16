@@ -156,7 +156,7 @@ jobs:
             vars.AWS_IAM_ROLE != '' &&
             vars.AWS_S3_BUCKET != ''
           }}
-        uses: MetaMask/github-tools/.github/actions/upload-s3@v1
+        uses: MetaMask/github-tools/.github/actions/upload-s3@node-24
         with:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_IAM_ROLE }}
@@ -232,7 +232,7 @@ jobs:
             vars.AWS_IAM_ROLE != '' &&
             vars.AWS_S3_BUCKET != ''
           }}
-        uses: MetaMask/github-tools/.github/actions/upload-s3@v1
+        uses: MetaMask/github-tools/.github/actions/upload-s3@node-24
         with:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_IAM_ROLE }}

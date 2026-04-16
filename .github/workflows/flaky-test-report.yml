@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate flaky test report
-        uses: MetaMask/github-tools/.github/actions/flaky-test-report@v1
+        uses: MetaMask/github-tools/.github/actions/flaky-test-report@node-24
         with:
           repository: ${{ github.event.repository.name }}
           workflow-id: main.yml

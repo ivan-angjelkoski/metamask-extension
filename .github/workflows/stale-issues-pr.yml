@@ -14,4 +14,4 @@ jobs:
       pull-requests: write
     steps:
       - name: Close stale issues and PRs
-        uses: MetaMask/github-tools/.github/actions/stale-issue-pr@v1
+        uses: MetaMask/github-tools/.github/actions/stale-issue-pr@node-24

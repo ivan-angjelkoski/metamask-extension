@@ -23,7 +23,7 @@ jobs:
       pull-requests: write
     steps:
       - name: Update Release Changelog
-        uses: MetaMask/github-tools/.github/actions/update-release-changelog@v1
+        uses: MetaMask/github-tools/.github/actions/update-release-changelog@node-24
         with:
           release-branch: ${{ github.ref_name }}
           repository-url: ${{ github.server_url }}/${{ github.repository }}

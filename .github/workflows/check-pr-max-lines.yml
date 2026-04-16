@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check PR lines changed
-        uses: MetaMask/github-tools/.github/actions/pr-line-check@v1
+        uses: MetaMask/github-tools/.github/actions/pr-line-check@node-24
         with:
           max-lines: '1000'
           ignore-patterns: '(\.lock|\.snap|lavamoat\/.*policy\.json)$'
