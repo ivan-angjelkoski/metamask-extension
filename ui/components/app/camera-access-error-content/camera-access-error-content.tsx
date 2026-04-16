@@ -105,6 +105,18 @@ function continueButtonTestId(
 }
 
 /**
+ * Determines header icon above the title: camera when access is still requestable; no-photography when blocked.
+ *
+ * @param variant - Needed vs blocked UI branch.
+ * @returns Design-system icon name for the header glyph.
+ */
+function headerIconName(variant: CameraAccessErrorContentVariant): IconName {
+  return variant === CameraAccessErrorContentVariant.Needed
+    ? IconName.Camera
+    : IconName.NoPhotography;
+}
+
+/**
  * Renders the Firefox blocked-state numbered instruction list.
  *
  * @param params - List props.
@@ -118,18 +130,17 @@ function renderFirefoxCameraInstructions(params: {
     <Box
       data-testid="qr-camera-firefox-instructions"
       flexDirection={BoxFlexDirection.Column}
-      gap={2}
       marginTop={2}
       padding={3}
       backgroundColor={BoxBackgroundColor.BackgroundAlternative}
-      style={{ borderRadius: 8 }}
+      style={{ borderRadius: 16 }}
     >
       {steps.map((step) => (
         <Text
           key={step.id}
-          variant={TextVariant.BodyMd}
+          variant={TextVariant.BodySm}
           textAlign={TextAlign.Left}
-          color={TextColor.TextDefault}
+          color={TextColor.TextAlternative}
         >
           {`${step.order}. ${step.text}`}
         </Text>
@@ -239,7 +250,7 @@ export const CameraAccessErrorContent = (
         paddingBottom={2}
       >
         <Icon
-          name={IconName.Camera}
+          name={headerIconName(variant)}
           color={IconColor.IconDefault}
           size={IconSize.Xl}
         />
