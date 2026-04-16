@@ -108,29 +108,27 @@ export function getBrowserName(
 }
 
 /**
- * @param bowser - Optional Bowser parser (defaults from `window.navigator.userAgent`).
- * @param nav - Optional Navigator (defaults to `window.navigator`).
+ * Checks whether the current browser is Firefox.
+ *
+ * @param args - Same optional `[bowser, navigator]` accepted by {@link getBrowserName}.
  * @returns Whether the host browser is Firefox (MV2 extension build).
  */
 export function isFirefoxBrowser(
-  bowser: Bowser.Parser.Parser = Bowser.getParser(window.navigator.userAgent),
-  nav: Navigator = window.navigator,
+  ...args: Parameters<typeof getBrowserName>
 ): boolean {
-  return getBrowserName(bowser, nav) === PLATFORM_FIREFOX;
+  return getBrowserName(...args) === PLATFORM_FIREFOX;
 }
 
 /**
  * Camera settings URL for Chromium-based browsers (Chrome, Brave, Edge).
  *
- * @param bowser - Optional Bowser parser (defaults from `window.navigator.userAgent`).
- * @param nav - Optional Navigator (defaults to `window.navigator`).
+ * @param args - Same optional `[bowser, navigator]` accepted by {@link getBrowserName}.
  * @returns `chrome://`, `brave://`, or `edge://` settings path for camera permissions.
  */
 export function getChromiumCameraSettingsUrl(
-  bowser: Bowser.Parser.Parser = Bowser.getParser(window.navigator.userAgent),
-  nav: Navigator = window.navigator,
+  ...args: Parameters<typeof getBrowserName>
 ): string {
-  const name = getBrowserName(bowser, nav);
+  const name = getBrowserName(...args);
   if (name === PLATFORM_BRAVE) {
     return 'brave://settings/content/camera';
   }
@@ -145,17 +143,15 @@ export function getChromiumCameraSettingsUrl(
  * Chromium-family browsers URL that opens **this extension's** site settings.
  * Uses {@link browser.runtime.getURL} so the `site` query parameter always matches the running build.
  *
- * @param bowser - Optional Bowser parser (defaults from `window.navigator.userAgent`).
- * @param nav - Optional Navigator (defaults to `window.navigator`).
+ * @param args - Same optional `[bowser, navigator]` accepted by {@link getBrowserName}.
  * @returns `chrome://`, `brave://`, or `edge://` site-details URL with encoded `chrome-extension://…/` site.
  */
 export function getChromiumExtensionCameraSiteSettingsUrl(
-  bowser: Bowser.Parser.Parser = Bowser.getParser(window.navigator.userAgent),
-  nav: Navigator = window.navigator,
+  ...args: Parameters<typeof getBrowserName>
 ): string {
   const extensionRootUrl = browser.runtime.getURL('/');
   const site = encodeURIComponent(extensionRootUrl);
-  const name = getBrowserName(bowser, nav);
+  const name = getBrowserName(...args);
   if (name === PLATFORM_BRAVE) {
     return `brave://settings/content/siteDetails?site=${site}`;
   }
