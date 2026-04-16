@@ -417,13 +417,13 @@ jobs:
     name: SonarCloud
     needs:
       - run-tests
-    if: >-
-      ${{
-        !cancelled() &&
-        (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'main')) &&
-        needs.run-tests.result == 'success' &&
-        !(github.event.pull_request.head.repo.fork || github.event.repository.fork)
-      }}
+    # if: >-
+    #   ${{
+    #     !cancelled() &&
+    #     (github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_name == 'main')) &&
+    #     needs.run-tests.result == 'success' &&
+    #     !(github.event.pull_request.head.repo.fork || github.event.repository.fork)
+    #   }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -439,8 +439,8 @@ jobs:
           path: coverage
 
       - name: SonarCloud Scan
-        # This is SonarSource/sonarqube-scan-action@v7.0.0
-        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9
+        # This is SonarSource/sonarqube-scan-action@v7.1.0
+        uses: SonarSource/sonarqube-scan-action@299e4b793aaa83bf2aba7c9c14bedbb485688ec4
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
