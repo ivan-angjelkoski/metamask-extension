@@ -159,6 +159,31 @@ describe('BaseReader', () => {
     expect(mockQueryCameraPermission).not.toHaveBeenCalled();
   });
 
+  // ---- Permission: already granted (fast path) ---------------------------
+
+  it('skips requestVideoStream when permission is already granted', async () => {
+    mockEnhancedReader.mockImplementation(
+      () => null as unknown as React.ReactElement,
+    );
+    mockCheckStatus.mockResolvedValue({
+      permissions: true,
+      environmentReady: true,
+    });
+    mockQueryCameraPermission.mockResolvedValue({
+      state: 'granted',
+      permissionStatus: null,
+    });
+
+    renderWithProvider(<BaseReader {...defaultProps} />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(messages.QRHardwareScanInstructions.message),
+      ).toBeInTheDocument();
+    });
+    expect(mockRequestVideoStream).not.toHaveBeenCalled();
+  });
+
   // ---- Permission: prompt-dismissed (needed) on Chromium ------------------
 
   it('shows camera-access-needed when Chromium user dismisses the prompt', async () => {

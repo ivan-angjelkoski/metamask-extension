@@ -181,6 +181,16 @@ const BaseReader = ({
       return;
     }
 
+    // Skip getUserMedia when already granted — EnhancedReader will open the
+    // camera once, avoiding a redundant open/close cycle that slows scanning.
+    if (state === CameraPermissionState.Granted) {
+      if (mountedRef.current) {
+        cleanupPermissionListener();
+        setReadyState(CameraReadyState.Ready);
+      }
+      return;
+    }
+
     try {
       const stream = await WebcamUtils.requestVideoStream();
       WebcamUtils.stopVideoStream(stream);
