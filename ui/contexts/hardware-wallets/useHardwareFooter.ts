@@ -58,7 +58,11 @@ export const useHardwareFooter = ({
   const inE2e =
     process.env.IN_TEST && process.env.JEST_WORKER_ID === 'undefined';
   const { connectionState } = useHardwareWalletState();
-  const { isHardwareWalletAccount, walletType, hardwareConnectionPermissionState } = useHardwareWalletConfig();
+  const {
+    isHardwareWalletAccount,
+    walletType,
+    hardwareConnectionPermissionState,
+  } = useHardwareWalletConfig();
   const { ensureDeviceReady } = useHardwareWalletActions();
   const { showErrorModal } = useHardwareWalletError();
   const [hasPreflightSucceeded, setHasPreflightSucceeded] = useState(false);
