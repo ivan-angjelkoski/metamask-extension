@@ -374,7 +374,7 @@ jobs:
       # This reporting method has probably been superseded by the Sentry logging, and may be removed later.
       - name: Log merge group failure
         if: ${{ github.event_name == 'merge_group' && failure() && !github.event.repository.fork }}
-        uses: MetaMask/github-tools/.github/actions/log-merge-group-failure@node-24
+        uses: MetaMask/github-tools/.github/actions/log-merge-group-failure@v1
         with:
           google-application-credentials: ${{ secrets.GOOGLE_APPLICATION_CREDENTIALS }}
           google-service-account: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}

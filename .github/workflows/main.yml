@@ -96,7 +96,7 @@ jobs:
     if: ${{ needs.get-requirements.outputs.skip-everything != 'true' }}
     needs:
       - get-requirements
-    uses: MetaMask/github-tools/.github/workflows/lint-workflows.yml@node-24
+    uses: MetaMask/github-tools/.github/workflows/lint-workflows.yml@v1
 
   test-lint:
     name: Test lint
@@ -478,7 +478,7 @@ jobs:
 
       - name: Upload 'bundle-size' to S3
         if: ${{ vars.AWS_REGION && vars.AWS_IAM_ROLE && vars.AWS_S3_BUCKET }}
-        uses: MetaMask/github-tools/.github/actions/upload-s3@node-24
+        uses: MetaMask/github-tools/.github/actions/upload-s3@v1
         with:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.AWS_IAM_ROLE }}

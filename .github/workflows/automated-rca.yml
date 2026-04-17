@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Automated RCA
-        uses: MetaMask/github-tools/.github/actions/post-gh-rca@node-24
+        uses: MetaMask/github-tools/.github/actions/post-gh-rca@v1
         with:
           repo-owner: ${{ github.repository_owner }}
           repo-name: ${{ github.event.repository.name }}

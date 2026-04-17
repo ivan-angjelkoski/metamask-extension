@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Run stable sync
-        uses: MetaMask/github-tools/.github/actions/stable-sync@node-24
+        uses: MetaMask/github-tools/.github/actions/stable-sync@v1
         with:
           semver-version: ${{ needs['get-stable-version'].outputs['stable-version'] }}
           repo-type: 'extension'
